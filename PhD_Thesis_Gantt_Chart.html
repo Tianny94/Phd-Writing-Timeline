@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>博士论文写作进度甘特图</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.26.0/plotly.min.js"></script>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 28px;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 15px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        button {
+            padding: 10px 20px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .add-btn {
+            background: #27ae60;
+        }
+        .add-btn:hover {
+            background: #229954;
+        }
+        .delete-btn {
+            background: #e74c3c;
+        }
+        .delete-btn:hover {
+            background: #c0392b;
+        }
+        .export-btn {
+            background: #9b59b6;
+        }
+        .export-btn:hover {
+            background: #8e44ad;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        th {
+            background: #34495e;
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        tr:hover {
+            background: #e8f4f8;
+        }
+        input[type="text"], input[type="date"], input[type="number"], select {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        input[type="number"] {
+            width: 80px;
+        }
+        select {
+            cursor: pointer;
+        }
+        .chart-container {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            background: #fafafa;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .stat-title {
+            color: #7f8c8d;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            color: #2c3e50;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .checkbox-cell {
+            text-align: center;
+        }
+        .table-wrapper {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 博士论文写作进度甘特图</h1>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-title">总任务数</div>
+                <div class="stat-value" id="totalTasks">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">已完成</div>
+                <div class="stat-value" id="completedTasks">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">进行中</div>
+                <div class="stat-value" id="inProgressTasks">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">平均进度</div>
+                <div class="stat-value" id="avgProgress">0%</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="add-btn" onclick="addTask()">➕ 添加任务</button>
+            <button class="delete-btn" onclick="deleteSelected()">🗑️ 删除选中</button>
+            <button onclick="updateChart()">🔄 更新甘特图</button>
+            <button class="export-btn" onclick="exportData()">📥 导出数据</button>
+            <button onclick="importData()">📤 导入数据</button>
+            <input type="file" id="fileInput" style="display: none;" accept=".json" onchange="handleFileImport(event)">
+        </div>
+
+        <div class="table-wrapper">
+            <table id="taskTable">
+                <thead>
+                    <tr>
+                        <th class="checkbox-cell">选择</th>
+                        <th>章节</th>
+                        <th>开始日期</th>
+                        <th>结束日期</th>
+                        <th>任务</th>
+                        <th>目标成果</th>
+                        <th>进度(%)</th>
+                        <th>状态</th>
+                    </tr>
+                </thead>
+                <tbody id="taskTableBody">
+                </tbody>
+            </table>
+        </div>
+
+        <div class="chart-container">
+            <div id="ganttChart"></div>
+        </div>
+    </div>
+
+    <script>
+        // 初始数据 - 基于您的Excel文件
+        let tasks = [
+            {
+                chapter: "📘 Ch.4 Quick Capture Paper",
+                startDate: "2025-11-04",
+                endDate: "2025-11-16",
+                task: "明确目标期刊, 撰写引言, 研究方法, 结果分析, 讨论与结论",
+                deliverable: "完成论文各部分初稿与修订",
+                progress: 0,
+                status: "进行中"
+            },
+            {
+                chapter: "🎨 Ch.5 Design Jam Paper",
+                startDate: "2025-11-18",
+                endDate: "2025-11-30",
+                task: "撰写引言（青年视角）, 工作坊设计, 结果分析, 教育启示讨论",
+                deliverable: "完成论文各部分初稿与修订",
+                progress: 0,
+                status: "未开始"
+            },
+            {
+                chapter: "📱 Ch.6 App Design Paper",
+                startDate: "2025-12-02",
+                endDate: "2025-12-14",
+                task: "撰写引言, 用户中心设计流程, 测试结果, 设计原则讨论",
+                deliverable: "完成论文各部分初稿与修订",
+                progress: 0,
+                status: "未开始"
+            },
+            {
+                chapter: "🧭 Ch.3 Approach",
+                startDate: "2025-12-16",
+                endDate: "2025-12-18",
+                task: "撰写研究框架, 理论整合, 绘制方法框架图",
+                deliverable: "完成方法论章节",
+                progress: 0,
+                status: "未开始"
+            },
+            {
+                chapter: "📚 Ch.2 Literature Review",
+                startDate: "2025-12-19",
+                endDate: "2025-12-22",
+                task: "热健康风险综述, TPB/Fogg理论, 预警系统研究",
+                deliverable: "完成文献综述章节",
+                progress: 0,
+                status: "未开始"
+            },
+            {
+                chapter: "🧱 Ch.1 Introduction",
+                startDate: "2025-12-23",
+                endDate: "2025-12-26",
+                task: "研究背景, 研究意义与目标, 研究问题与假设",
+                deliverable: "完成引言章节",
+                progress: 0,
+                status: "未开始"
+            },
+            {
+                chapter: "🔬 Ch.7 Field Test (Method)",
+                startDate: "2025-12-27",
+                endDate: "2025-12-31",
+                task: "实验设计, 测试条件, 数据收集与分析方法",
+                deliverable: "完成实地测试方法章节",
+                progress: 0,
+                status: "未开始"
+            }
+        ];
+
+        function renderTable() {
+            const tbody = document.getElementById('taskTableBody');
+            tbody.innerHTML = '';
+            
+            tasks.forEach((task, index) => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td class="checkbox-cell"><input type="checkbox" data-index="${index}"></td>
+                    <td><input type="text" value="${task.chapter}" onchange="updateTask(${index}, 'chapter', this.value)"></td>
+                    <td><input type="date" value="${task.startDate}" onchange="updateTask(${index}, 'startDate', this.value)"></td>
+                    <td><input type="date" value="${task.endDate}" onchange="updateTask(${index}, 'endDate', this.value)"></td>
+                    <td><input type="text" value="${task.task}" onchange="updateTask(${index}, 'task', this.value)"></td>
+                    <td><input type="text" value="${task.deliverable}" onchange="updateTask(${index}, 'deliverable', this.value)"></td>
+                    <td><input type="number" min="0" max="100" value="${task.progress}" onchange="updateTask(${index}, 'progress', this.value)"></td>
+                    <td>
+                        <select onchange="updateTask(${index}, 'status', this.value)">
+                            <option value="未开始" ${task.status === '未开始' ? 'selected' : ''}>未开始</option>
+                            <option value="进行中" ${task.status === '进行中' ? 'selected' : ''}>进行中</option>
+                            <option value="已完成" ${task.status === '已完成' ? 'selected' : ''}>已完成</option>
+                            <option value="延期" ${task.status === '延期' ? 'selected' : ''}>延期</option>
+                        </select>
+                    </td>
+                `;
+            });
+            
+            updateStats();
+        }
+
+        function updateTask(index, field, value) {
+            if (field === 'progress') {
+                value = Math.max(0, Math.min(100, parseInt(value) || 0));
+                // 自动更新状态
+                if (value === 0) {
+                    tasks[index].status = '未开始';
+                } else if (value === 100) {
+                    tasks[index].status = '已完成';
+                } else {
+                    tasks[index].status = '进行中';
+                }
+            }
+            tasks[index][field] = value;
+            renderTable();
+            updateChart();
+        }
+
+        function addTask() {
+            const today = new Date().toISOString().split('T')[0];
+            const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            
+            tasks.push({
+                chapter: "新章节",
+                startDate: today,
+                endDate: nextWeek,
+                task: "新任务",
+                deliverable: "待定",
+                progress: 0,
+                status: "未开始"
+            });
+            
+            renderTable();
+            updateChart();
+        }
+
+        function deleteSelected() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+            const indicesToDelete = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index)).sort((a, b) => b - a);
+            
+            indicesToDelete.forEach(index => {
+                tasks.splice(index, 1);
+            });
+            
+            renderTable();
+            updateChart();
+        }
+
+        function updateStats() {
+            const total = tasks.length;
+            const completed = tasks.filter(t => t.status === '已完成').length;
+            const inProgress = tasks.filter(t => t.status === '进行中').length;
+            const avgProgress = tasks.length > 0 ? 
+                Math.round(tasks.reduce((sum, t) => sum + (parseInt(t.progress) || 0), 0) / tasks.length) : 0;
+            
+            document.getElementById('totalTasks').textContent = total;
+            document.getElementById('completedTasks').textContent = completed;
+            document.getElementById('inProgressTasks').textContent = inProgress;
+            document.getElementById('avgProgress').textContent = avgProgress + '%';
+        }
+
+        function updateChart() {
+            const data = [];
+            const colors = {
+                '未开始': '#95a5a6',
+                '进行中': '#3498db',
+                '已完成': '#27ae60',
+                '延期': '#e74c3c'
+            };
+            
+            // 按开始日期排序任务
+            const sortedTasks = [...tasks].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+            
+            sortedTasks.forEach((task, index) => {
+                const startDate = new Date(task.startDate);
+                const endDate = new Date(task.endDate);
+                const duration = (endDate - startDate) / (1000 * 60 * 60 * 24);
+                
+                data.push({
+                    x: [startDate, endDate],
+                    y: [index, index],
+                    name: task.chapter,
+                    text: `${task.task} (${task.progress}%)`,
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: {
+                        color: colors[task.status],
+                        width: 20
+                    },
+                    hovertemplate: 
+                        '<b>%{text}</b><br>' +
+                        '章节: %{name}<br>' +
+                        '开始: %{x[0]|%Y-%m-%d}<br>' +
+                        '结束: %{x[1]|%Y-%m-%d}<br>' +
+                        '持续: ' + duration + ' 天<br>' +
+                        '进度: ' + task.progress + '%<br>' +
+                        '状态: ' + task.status +
+                        '<extra></extra>',
+                    showlegend: false
+                });
+                
+                // 添加进度条
+                if (task.progress > 0) {
+                    const progressEnd = new Date(startDate.getTime() + (endDate - startDate) * task.progress / 100);
+                    data.push({
+                        x: [startDate, progressEnd],
+                        y: [index, index],
+                        type: 'scatter',
+                        mode: 'lines',
+                        line: {
+                            color: '#2ecc71',
+                            width: 10
+                        },
+                        hoverinfo: 'skip',
+                        showlegend: false
+                    });
+                }
+            });
+            
+            const layout = {
+                title: {
+                    text: '博士论文写作进度甘特图',
+                    font: {
+                        size: 20,
+                        color: '#2c3e50'
+                    }
+                },
+                xaxis: {
+                    type: 'date',
+                    title: '日期',
+                    gridcolor: '#ecf0f1',
+                    showgrid: true,
+                    zeroline: false,
+                    tickformat: '%Y-%m-%d'
+                },
+                yaxis: {
+                    title: '任务',
+                    ticktext: sortedTasks.map(t => t.chapter),
+                    tickvals: sortedTasks.map((t, i) => i),
+                    tickmode: 'array',
+                    gridcolor: '#ecf0f1',
+                    showgrid: true,
+                    zeroline: false
+                },
+                height: 550,
+                margin: {
+                    l: 200,
+                    r: 40,
+                    t: 60,
+                    b: 60
+                },
+                hovermode: 'closest',
+                plot_bgcolor: '#ffffff',
+                paper_bgcolor: '#fafafa',
+                shapes: [
+                    {
+                        type: 'line',
+                        x0: new Date().toISOString().split('T')[0],
+                        x1: new Date().toISOString().split('T')[0],
+                        y0: -0.5,
+                        y1: tasks.length - 0.5,
+                        line: {
+                            color: '#e74c3c',
+                            width: 2,
+                            dash: 'dot'
+                        }
+                    }
+                ],
+                annotations: [
+                    {
+                        x: new Date().toISOString().split('T')[0],
+                        y: tasks.length,
+                        text: '今天',
+                        showarrow: true,
+                        arrowhead: 2,
+                        arrowsize: 1,
+                        arrowwidth: 2,
+                        arrowcolor: '#e74c3c',
+                        ax: 0,
+                        ay: -30
+                    }
+                ]
+            };
+            
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d', 'autoScale2d']
+            };
+            
+            Plotly.newPlot('ganttChart', data, layout, config);
+        }
+
+        function exportData() {
+            const dataStr = JSON.stringify(tasks, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportFileDefaultName = `PhD_Timeline_${new Date().toISOString().split('T')[0]}.json`;
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+        }
+
+        function importData() {
+            document.getElementById('fileInput').click();
+        }
+
+        function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        tasks = JSON.parse(e.target.result);
+                        renderTable();
+                        updateChart();
+                        alert('数据导入成功！');
+                    } catch (error) {
+                        alert('导入失败：文件格式错误');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        // 初始化
+        renderTable();
+        updateChart();
+        
+        // 自动保存到本地存储
+        setInterval(() => {
+            localStorage.setItem('phdTasks', JSON.stringify(tasks));
+        }, 5000);
+        
+        // 从本地存储加载
+        window.addEventListener('load', () => {
+            const savedTasks = localStorage.getItem('phdTasks');
+            if (savedTasks) {
+                try {
+                    tasks = JSON.parse(savedTasks);
+                    renderTable();
+                    updateChart();
+                } catch (e) {
+                    console.log('加载保存的数据失败');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
